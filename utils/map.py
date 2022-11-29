@@ -1,8 +1,10 @@
 from enum import Enum
+import string
 from utils.drawable import COLOR_BLACK, COLOR_GRAY, COLOR_GREEN, COLOR_RED, COLOR_WHITE, Drawable2D, Color
 from typing import List, Tuple
 import numpy as np
 import random
+from PIL import Image, ImageDraw, ImageFont
 
 from utils.utils import GridDirection
 
@@ -34,6 +36,22 @@ class Block(Drawable2D):
         self.exit_directions = exit_directions if exit_directions else []
         self.entry_direction = entry_direction
         self.explored = False
+        self.letter = None
+        self._has_changed = True
+
+    @property
+    def letter(self):
+        if not hasattr(self, "_letter"):
+            self._letter = None
+        
+        return self._letter
+    
+    @letter.setter
+    def letter(self, new_letter: str):
+        if new_letter and len(new_letter) > 1:
+            return
+        
+        self._letter = new_letter
         self._has_changed = True
 
     @property
@@ -79,6 +97,20 @@ class Block(Drawable2D):
         for direction in GridDirection:
             if direction not in self.exit_directions and direction != self.entry_direction:
                 self.draw_edge(direction, self.pallete.wall_color)
+        
+        if self.letter:
+            font = 'data/Arial.ttf'
+            pil_font = ImageFont.truetype(f"{font}", size=self.width, encoding="unic")
+            text_width, text_height = pil_font.getsize(self.letter)
+
+            canvas = Image.fromarray(np.array(self.color_array).astype(np.uint8))
+            draw = ImageDraw.Draw(canvas)
+            offset = ((self.width - text_width) // 2, (self.width - text_height) // 2)
+            black = "#000000"
+            draw.text(offset, self.letter, font=pil_font, fill=black)
+            self.color_array = np.asarray(canvas)
+            self.color_array.reshape((self.height, self.width, 3))
+            self.color_array = self.color_array.tolist()
 
         self._has_changed = False
         return self.color_array
@@ -98,6 +130,29 @@ class Map(Drawable2D):
     def get_start_block(self):
         return random.choice(self.block_grid[0])
 
+    def get_all_junction_starts(self, ignore_cache: bool = False):
+        if not hasattr(self, "_junction_starts"):
+            self._junction_starts = []
+        else:
+            if not ignore_cache:
+                return self._junction_starts
+            else:
+                self._junction_starts = []
+
+        for y in range(self.grid_height):
+            for x in range(self.grid_width):
+                curr_block = self.block_grid[y][x]
+
+                if len(curr_block.exit_directions) < 2:
+                    continue
+
+                for direction in curr_block.exit_directions:
+                    junction_start = self.get_block_in_direction(curr_block, direction, False)
+                    if junction_start:
+                        self._junction_starts.append(junction_start)
+        
+        return self._junction_starts
+
     def get_block_x_y_tuple(self, block: Block, clear_cache: bool = False) -> Tuple[int, int]:
         if not hasattr(self, "_cached_block_locations") or clear_cache:
             self._cached_block_locations = {}
@@ -112,7 +167,24 @@ class Map(Drawable2D):
                     return (x, y)
         
         return (-1, -1)
-    
+
+    def get_blocks_relative_direction(self, block_from: Block, block_to: Block) -> GridDirection or None:
+        for direction, block in self.get_blocks_in_all_directions(block_from):
+            if block == block_to:
+                return direction
+        
+        return None
+
+    def get_blocks_in_all_directions(self, block: Block, ignore_explored: bool = True) -> List[Tuple[GridDirection, Block]]:
+        ret_val = []
+
+        for direction in GridDirection:
+            curr_block = self.get_block_in_direction(block, direction, ignore_explored)
+            if curr_block:
+                ret_val.append((direction, curr_block))
+        
+        return ret_val
+
     def get_block_in_direction(self, block: Block, direction: GridDirection, ignore_explored: bool = True) -> None or Block:
         x, y = self.get_block_x_y_tuple(block)
 
@@ -159,18 +231,10 @@ class Path:
 
         self.complete = False
     
-    def get_blocks_in_all_directions(self, block: Block, ignore_explored: bool = True) -> List[Tuple[GridDirection, Block]]:
-        ret_val = []
 
-        for direction in GridDirection:
-            curr_block = self.map.get_block_in_direction(block, direction, ignore_explored)
-            if curr_block:
-                ret_val.append((direction, curr_block))
-        
-        return ret_val
 
     def clean_block_relationships(self, block: Block):
-        for direction, check_block in self.get_blocks_in_all_directions(block, False):
+        for direction, check_block in self.map.get_blocks_in_all_directions(block, False):
             check_relative_direction = GridDirection.get_opposite_direction(direction)
 
             # Check Block has no relationship to this block
@@ -195,7 +259,7 @@ class Path:
     def set_random_exits(self, block: Block, chance: float = 0.6) -> List[Block]:
         ret_val = list()
 
-        for direction, check_block in self.get_blocks_in_all_directions(block):
+        for direction, check_block in self.map.get_blocks_in_all_directions(block):
             if check_block and random.randint(1, 100) < int(chance * 100):
                 block.exit_directions.append(direction)
                 check_block.entry_direction = GridDirection.get_opposite_direction(direction)
@@ -228,12 +292,11 @@ class Path:
 
         return ret_blocks
 
-
 class Maze:
     def __init__(self, grid_width: int, grid_height: int, block_width: int, block_height: int) -> Tuple[int, Block]:
-
         self.map = Map(grid_width, grid_height, block_width, block_height)
-        self.paths = list()
+        self.generate_maze()
+        self.solve_maze(paint_path=True)
 
     def get_lowest_block(self):
         for y in range(self.map.grid_height - 1, -1, -1):
@@ -251,7 +314,7 @@ class Maze:
 
         self.map_start.entry_direction = GridDirection.North
 
-        possible_path_starts = [self.map_start] 
+        possible_path_starts = [self.map_start]
         while not self.map_end:
             while possible_path_starts:
                 current_start = random.choice(possible_path_starts)
@@ -312,13 +375,117 @@ class Maze:
                 block._has_changed = True
         
         self.map.draw()
-    
-    
 
     def save_image(self, filename: str):
         return self.map.save_array_as_png(filename)
          
       
+class WordMaze(Maze):
+    def __init__(self, word: str, grid_width: int = 20, grid_height: int = 20, block_width: int = 20, block_height: int = 20):
+        if not word.isalpha():
+            raise ValueError("Word contains invalid characters, only alphabet characters are allowed.")
+
+        super().__init__(grid_width, grid_height, block_width, block_height)
+        self.word = word
+        self.apply_word()
+        self.map.draw()
+
+    def move_path_entrance(self, block: Block, excluded_blocks: List[Block]):
+        """'block' is a Block that needs its entrance moved, and we can't reopen to the supplied block list"""
+        # Close the entry
+        exit_block = self.map.get_block_in_direction(block, block.entry_direction, False)
+        exit_block.exit_directions.remove(GridDirection.get_opposite_direction(block.entry_direction))
+        block.entry_direction = None
+
+        wander_paths = [Path(self.map, block)]
+        new_entry_path = None
+        # Stack blocks until we reach one with a viable new entrance
+        while not new_entry_path:
+            paths_to_remove = []
+            paths_to_add = []
+            for path in wander_paths:
+                curr_block = path.blocks[-1]
+                # Check for a solution block
+                for direction in GridDirection:
+                    if direction in curr_block.exit_directions or direction == curr_block.entry_direction:
+                        continue
+                    check_block = self.map.get_block_in_direction(curr_block, direction)
+                    if check_block not in excluded_blocks:
+                        path.blocks.append(check_block)
+                        new_entry_path = path
+                        break
+
+                if new_entry_path:
+                    break
+                
+                if len(curr_block.exit_directions) > 0:
+                    for direction in curr_block.exit_directions:
+                        next_block = self.map.get_block_in_direction(curr_block, direction)
+                        new_blocks_path = path.blocks.copy()
+                        new_blocks_path.append(next_block)
+                        new_path = Path(new_blocks_path)
+                        paths_to_add.append(new_path)
+
+                paths_to_remove.append(path)
+            
+            for path in paths_to_remove:
+                wander_paths.remove(path)
+            
+            for path in paths_to_add:
+                if path not in wander_paths:
+                    wander_paths.append(path)
+        
+        # We should have a solution path iterate it backwards, each entrance is now an exit and each entry an exit
+        # until we reach a block without an entry (which is the one we just closed off)
+        while new_entry_path.blocks:
+            first_block = new_entry_path.blocks[-1]
+            second_block = new_entry_path.blocks[-2]
+            for direction, block in self.map.get_blocks_in_all_directions(first_block, False):
+                if block == second_block:
+                    first_block.exit_directions.append(direction)
+                    second_block.entry_direction = GridDirection.get_opposite_direction(direction)
+                    break
+            
+            new_entry_path.blocks.remove(first_block)
+            new_entry_path.blocks.remove(second_block)
+
+    def apply_word(self):
+        exit_count = len(self.word)
+        junction_starts = self.map.get_all_junction_starts()
+        solution_junction_starts = []
+        for start_block in junction_starts:
+            if start_block in self.solution_path.blocks:
+                solution_junction_starts.append(start_block)
+        
+        if len(solution_junction_starts) < exit_count - 1:
+            raise IndexError("Not enough exit points to write word!")
+        
+        for block in solution_junction_starts:
+            if block in solution_junction_starts and exit_count > 0:
+                block.letter = self.word[len(self.word) - exit_count]
+                exit_count -= 1
+            elif exit_count == 0 and block in solution_junction_starts:
+                block_from = self.map.get_block_in_direction(block, block.entry_direction, False)
+                block_from_exits = block_from.exit_directions
+                for direction in block_from_exits:
+                    if direction != GridDirection.get_opposite_direction(block.entry_direction):
+                        bad_entry_block = self.map.get_block_in_direction(block_from, direction, False)
+                        self.move_path_entrance(bad_entry_block, self.solution_path.blocks)
+        
+        for block in self.map.get_all_junction_starts(ignore_cache=True):
+            if block not in solution_junction_starts:
+                block.letter = random.choice(string.ascii_letters)
+            
+
+
+
+        
+
+
+            
+
+            
+        
 
 
 
