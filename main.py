@@ -1,23 +1,41 @@
-from utils.drawable import COLOR_RED
 from utils.map import Maze
 import time
+import argparse
+from reportlab.pdfgen import canvas
 
+def parseargs() -> argparse.Namespace:
+    arg_parser = argparse.ArgumentParser()
+
+    arg_parser.add_argument("--grid_width", help="The number of blocks wide to make the maze.", type=int, default=50)
+    arg_parser.add_argument("--grid_height", help="The number of blocks high to make the maze.", type=int, default=50)
+    arg_parser.add_argument("--pixel_width", help="The number of pixels wide for a block in the maze.", type=int, default=10)
+    arg_parser.add_argument("--pixel_height", help="The number of pixels hight for a block in the maze.", type=int, default=10)
+    arg_parser.add_argument("--num_to_generate", help="How many would you like to generate?", type=int, default=1)
+    arg_parser.add_argument("--pdf", help="Generate a pdf version of the mazes", action="store_true", default=False)
+    arg_parser.add_argument("--solution", help="Paint and save the solution path", action="store_true", default=False)
+    arg_parser.add_argument("--filename", help="What to name the output maze.", type=str, default="Output_Maze.png")
+
+    return arg_parser.parse_args()
+
+def save_pdf(file_location: str, width: int, height: int):
+    my_canvas = canvas.Canvas(file_location.split(".")[0] + ".pdf")
+    my_canvas.drawImage(file_location, 10, 10, width, height)
+    my_canvas.save()
 
 if __name__ == "__main__":
-    for i in range(1, 100):
-        generation_times = []
-        save_times = []
-        for j in range(3):
-            generation_start = time.time()
-            maze = Maze(i,i)
-            maze.generate_maze()
-            generation_times.append(time.time() - generation_start)
-            save_start = time.time()
-            maze.save_image(f"Output_maze_{i}x{i}_{j + 1}.png")
-            save_times.append(time.time() - save_start)
-        average_gen = sum(generation_times) / len(generation_times)
-        average_save = sum(save_times) / len(save_times)
+    args = parseargs()
 
-        print(f"A {i}x{i} maze took {average_gen}s to generate and {average_save}s to save on an RPI4 8GB.")
+    for i in range(args.num_to_generate):
+        maze = Maze(args.grid_width, args.grid_height, args.pixel_width, args.pixel_height)
+        maze.generate_maze()
+        maze.save_image(args.filename.split(".")[0] + "_" + str(i) + ".png")
+
+        if args.solution:
+            maze.solve_maze(paint_path=True)
+            maze.save_image(args.filename.split(".")[0] + "_" + str(i) + "_solution" ".png")
+
+        if args.pdf:
+            save_pdf(args.filename, args.grid_width * args.pixel_width, args.grid_height * args.pixel_height)
+
 
     

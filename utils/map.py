@@ -29,9 +29,10 @@ class Block(Drawable2D):
         super().__init__(width, height)
 
         self.pallete.add("wall_color", COLOR_BLACK)
-        self.pallete.add("background_color", COLOR_GRAY)
+        self.pallete.add("background_color", COLOR_WHITE)
 
         self.exit_directions = exit_directions if exit_directions else []
+        self.entry_direction = entry_direction
         self.explored = False
         self._has_changed = True
 
@@ -60,6 +61,10 @@ class Block(Drawable2D):
             return 
 
         self._exit_directions = ObservableList(directions)
+    
+    @property
+    def is_multi_exit(self):
+        return bool(len(self.exit_directions) > 1)
 
     def draw(self) -> List[List[Color]]:
         """Draw our block in 2D"""
@@ -147,11 +152,10 @@ class Map(Drawable2D):
         return self.color_array
 
 class Path:
-    def __init__(self, map: Map, start_block: Block, min_path_length: int = 1):
+    def __init__(self, map: Map, start_block: Block or List[Block], min_path_length: int = 1):
         self.map = map
-        self.blocks = [start_block]
+        self.blocks = [start_block] if isinstance(start_block, Block) else start_block
         self.min_path_length = min_path_length
-        # self.path_color = Color.get_random_color()
 
         self.complete = False
     
@@ -204,12 +208,8 @@ class Path:
 
         if self.complete:
             return ret_blocks
-        
-        current_block = self.blocks[-1]
-        current_block.explored = True
-        # current_block.pallete.background_color = self.path_color
 
-        exit_block_list = self.set_random_exits(current_block)
+        exit_block_list = [self.blocks[-1]]
 
         while exit_block_list:
             current_block = random.choice(exit_block_list)
@@ -222,7 +222,6 @@ class Path:
             ret_blocks.extend(exit_block_list)
 
             exit_block_list = self.set_random_exits(current_block)
-            # self.clean_block_relationships(current_block)
             self.blocks.append(current_block)
 
         self.complete = True
@@ -231,15 +230,15 @@ class Path:
 
 
 class Maze:
-    def __init__(self, width: int, height: int) -> Tuple[int, Block]:
-        self.map = Map(width, height)
+    def __init__(self, grid_width: int, grid_height: int, block_width: int, block_height: int) -> Tuple[int, Block]:
+
+        self.map = Map(grid_width, grid_height, block_width, block_height)
         self.paths = list()
 
     def get_lowest_block(self):
         for y in range(self.map.grid_height - 1, -1, -1):
             explored_blocks = [block.explored for block in self.map.block_grid[y]]
             if any(explored_blocks):
-                
                 explored_low_blocks = [block for block in self.map.block_grid[y] if block.explored]
 
                 return (y, random.choice(explored_low_blocks))
@@ -277,13 +276,45 @@ class Maze:
                 new_start.entry_direction = GridDirection.North
                 possible_path_starts.append(new_start)
 
-
-        self.map_start.pallete.background_color = COLOR_GREEN
-        self.map_end.pallete.background_color = COLOR_RED
         self.map.draw()
-        
-
     
+    def solve_maze(self, paint_path: bool = False):
+        start = self.map_start
+        self.solution_path = None
+        exploring_paths = [Path(self.map, start)]
+        while not self.solution_path and exploring_paths:
+            temp_exploring_paths = exploring_paths
+            for path in temp_exploring_paths:
+                curr_block = path.blocks[-1]
+
+                if len(curr_block.exit_directions) == 0 and curr_block != self.map_end:
+                    exploring_paths.remove(path)
+                    continue
+                elif curr_block == self.map_end:
+                    self.solution_path = path
+                    break
+                if curr_block.is_multi_exit:
+                    for direction in curr_block.exit_directions:
+                        blocks = path.blocks.copy()
+                        directed_block = self.map.get_block_in_direction(curr_block, direction, False)
+                        blocks.append(self.map.get_block_in_direction(curr_block, direction, False))
+                        
+                        exploring_paths.append(Path(self.map, blocks))
+                    exploring_paths.remove(path)
+                else:
+                    directed_block = self.map.get_block_in_direction(curr_block, curr_block.exit_directions[0], False)
+                    path.blocks.append(directed_block)
+            exploring_paths = temp_exploring_paths
+        
+        if paint_path:
+            for block in self.solution_path.blocks:
+                block.pallete.background_color = COLOR_GREEN
+                block._has_changed = True
+        
+        self.map.draw()
+    
+    
+
     def save_image(self, filename: str):
         return self.map.save_array_as_png(filename)
          
