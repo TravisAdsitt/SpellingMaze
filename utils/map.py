@@ -267,6 +267,47 @@ class Path:
         
         return ret_val
 
+    def get_all_connected_blocks(self):
+        if len(self.blocks):
+            return []
+        
+        explored_blocks = [self.blocks[0]]
+        blocks_to_explore = []
+
+        for direction in explored_blocks[0].exit_directions:
+            blocks_to_explore.append(self.map.get_block_in_direction(explored_blocks[0], direction))
+        blocks_to_explore.append(self.map.get_block_in_direction(explored_blocks[0], explored_blocks[0].entry_direction))
+
+        while blocks_to_explore:
+            remove_blocks = []
+            add_blocks = []
+            for block in blocks_to_explore:
+                if block not in explored_blocks:
+                    explored_blocks.append(block)
+
+                remove_blocks.append(block)
+
+                for direction in block.exit_directions:
+                    exit_block = self.map.get_block_in_direction(block, direction)
+                    if exit_block not in blocks_to_explore and exit_block not in add_blocks and entry_block not in explored_blocks:
+                        add_blocks.append(exit_block)
+
+                if block.entry_direction:
+                    entry_block = self.map.get_block_in_direction(block, block.entry_direction)
+                    if entry_block not in blocks_to_explore and entry_block not in add_blocks and entry_block not in explored_blocks:
+                        add_blocks.append()
+
+            for block in remove_blocks:
+                blocks_to_explore.remove(block)
+            for block in add_blocks:
+                blocks_to_explore.add(block)
+        
+        return explored_blocks
+        
+
+
+                
+
     def step_path(self) -> List[Block]:
         ret_blocks = []
 
@@ -460,21 +501,32 @@ class WordMaze(Maze):
         if len(solution_junction_starts) < exit_count - 1:
             raise IndexError("Not enough exit points to write word!")
         
+        selected_blocks = []
+
+        while len(selected_blocks) < len(self.word):
+            next_chosen_block = random.choice(solution_junction_starts)
+            if next_chosen_block not in selected_blocks:
+                selected_blocks.append(next_chosen_block)
+
         for block in solution_junction_starts:
-            if block in solution_junction_starts and exit_count > 0:
+            if block in selected_blocks:
                 block.letter = self.word[len(self.word) - exit_count]
                 exit_count -= 1
-            elif exit_count == 0 and block in solution_junction_starts:
+            elif block in solution_junction_starts:
                 block_from = self.map.get_block_in_direction(block, block.entry_direction, False)
                 block_from_exits = block_from.exit_directions
                 for direction in block_from_exits:
                     if direction != GridDirection.get_opposite_direction(block.entry_direction):
                         bad_entry_block = self.map.get_block_in_direction(block_from, direction, False)
-                        self.move_path_entrance(bad_entry_block, self.solution_path.blocks)
+                        all_connected_blocks = Path(self.map, bad_entry_block).get_all_connected_blocks()
+                        all_connected_blocks.extend(self.solution_path.blocks)
+                        self.move_path_entrance(bad_entry_block, all_connected_blocks)
         
+        invalid_letters = [l for l in string.ascii_letters if l not in self.word]
+
         for block in self.map.get_all_junction_starts(ignore_cache=True):
-            if block not in solution_junction_starts:
-                block.letter = random.choice(string.ascii_letters)
+            if block not in selected_blocks:
+                block.letter = random.choice(invalid_letters)
             
 
 
