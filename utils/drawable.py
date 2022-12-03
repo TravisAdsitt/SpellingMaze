@@ -87,7 +87,13 @@ class Drawable2D(ABC):
             current_x += delta_x
 
     def save_array_as_png(self, filename: str):
-        color_array = np.array(self.color_array)
+        header_lines = [self.color_array[0].copy() for _ in range(30)]
+        footer_lines = [self.color_array[-1].copy() for _ in range(30)]
+
+        header_lines.extend(self.color_array)
+        header_lines = header_lines + footer_lines
+
+        color_array = np.array(header_lines)
         im = Image.fromarray(color_array.astype(np.uint8))
         im.save(filename) 
 
