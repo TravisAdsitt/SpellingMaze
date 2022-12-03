@@ -8,6 +8,7 @@ import numpy as np
 import random
 from PIL import Image, ImageDraw, ImageFont
 import imageio
+from natsort import natsorted
 
 from utils.utils import GridDirection
 
@@ -119,9 +120,10 @@ class Block(Drawable2D):
         return self.color_array
 
 class Map(Drawable2D):
-    def __init__(self, grid_width: int, grid_height: int, block_width: int = 10, block_height: int = 10, args: argparse.Namespace = None):
+    def __init__(self, grid_width: int, grid_height: int, block_width: int = 10, block_height: int = 10, path_prefix:str = None, args: argparse.Namespace = None):
         super().__init__(grid_width * block_width, grid_height * block_height)
         self.args = args
+        self.path_prefix = path_prefix
 
         self.grid_width = grid_width
         self.grid_height = grid_height
@@ -275,29 +277,12 @@ class Map(Drawable2D):
                     curr_block.letter = ">"
     
     def draw(self) -> List[List[Color]]:
-        changes = False
-
         for y in range(len(self.block_grid)):
             for x in range(len(self.block_grid[y])):
                 self.clean_block_relationships(self.block_grid[y][x])
                 block_color_data = self.block_grid[y][x].draw()
                 if block_color_data:
-                    changes = True
                     self.draw_portion(x * self.block_width, y * self.block_height, block_color_data)
-        
-        if self.args.show_path_generation and changes:
-            files = glob.glob(f"MazePathImage_*.png")
-            if files:
-                files.sort()
-                frames = [imageio.imread(image) for image in files]
-                imageio.mimsave("path_building_maze.gif", frames, fps=2)
-                files = [files[-1] * 10]
-
-            files = files.append(glob.glob(f"MazePathImage_*.png"))
-            if files:
-                files.sort()
-                frames = [imageio.imread(image) for image in files]
-                imageio.mimsave("path_building_word_maze.gif", frames, fps=2)
         
         return self.color_array
 
@@ -348,7 +333,7 @@ class Path:
             if self.map.args.show_path_generation:
                 if not hasattr(self.map,"_path_image_index"):
                     self.map._path_image_index = 0
-                self.map.save_debug_image(f"MazePathImage_{str(self.map._path_image_index)}")
+                self.map.save_debug_image(f"{self.map.path_prefix}_{str(self.map._path_image_index)}")
                 self.map._path_image_index += 1
 
         self.complete = True
@@ -357,9 +342,16 @@ class Path:
 
 class Maze:
     def __init__(self, grid_width: int, grid_height: int, block_width: int, block_height: int, args:argparse.Namespace = None) -> Tuple[int, Block]:
-        self.map = Map(grid_width, grid_height, block_width, block_height, args)
+        self.map = Map(grid_width, grid_height, block_width, block_height, "MazePathImage", args)
+        self.args = args
         self.generate_maze()
         self.solve_maze()
+
+        if self.args.show_path_generation:
+            files = natsorted(glob.glob(f"{self.map.path_prefix}_*.png"))
+            if files:
+                frames = [imageio.imread(image) for image in files]
+                imageio.mimsave("path_building_maze.gif", frames, fps=2)
 
     def get_lowest_block(self):
         for y in range(self.map.grid_height - 1, -1, -1):
@@ -465,13 +457,36 @@ class WordMaze(Maze):
     def __init__(self, word: str, grid_width: int = 20, grid_height: int = 20, block_width: int = 20, block_height: int = 20, args:argparse.Namespace = None):
         if not word.isalpha():
             raise ValueError("Word contains invalid characters, only alphabet characters are allowed.")
-
         super().__init__(grid_width, grid_height, block_width, block_height, args=args)
+        parent_prefix = self.map.path_prefix
+        self.map.path_prefix = "WordMazePathImage"
         self.word = word
         self.apply_word()
         self.map.draw()
 
-    def close_and_unexplore_connected_blocks(self, block: Block):
+        if self.args.show_path_generation:
+            parent_files = [natsorted(glob.glob(f"{parent_prefix}_*.png"))[-1] * 10]
+            files = parent_files.append(natsorted(glob.glob(f"{self.map.path_prefix}_*.png")))
+
+            if files:
+                frames = [imageio.imread(image) for image in files]
+                imageio.mimsave("path_building_word_maze.gif", frames, fps=2)
+
+        if self.args.show_letter_placement:
+            files = natsorted(glob.glob(f"LetterPlacementImage_*.png"))
+
+            if files:
+                frames = [imageio.imread(image) for image in files]
+                imageio.mimsave("letter_placement.gif", frames, fps=6)
+
+                for file in files:
+                    try:
+                        os.remove(file)
+                    except:
+                        continue
+        
+
+    def close_and_unexplore_connected_blocks(self, block: Block) -> None:
         if not block:
             return
 
@@ -493,8 +508,11 @@ class WordMaze(Maze):
             
             curr_block.exit_directions = set()
 
-    def place_letter_in_exit_blocks(self, block_with_exits: Block, word_index: int = None):
+    def place_letter_in_exit_blocks(self, block_with_exits: Block, word_index: int = None) -> None:
         invalid_letters = [l for l in string.ascii_letters if l not in self.word]
+        if self.map.args.show_letter_placement:
+            if not hasattr(self.map, "_letter_placement_index"):
+                self.map._letter_placement_index = 0
 
         exit_directions = list(block_with_exits.exit_directions)
         for direction in exit_directions:
@@ -511,6 +529,10 @@ class WordMaze(Maze):
                     letter_block.letter = self.word[(word_index + 1) % len(self.word)]
                 else:
                     letter_block.letter = random.choice(invalid_letters).lower()
+            
+            if self.map.args.show_letter_placement:
+                self.map.save_debug_image(f"LetterPlacementImage_{self.map._letter_placement_index}")
+                self.map._letter_placement_index += 1
 
     def select_solution_path_junctions(self, junctions: List[Block]) -> Set[Block]:
         selected_junctions = set()
@@ -523,30 +545,19 @@ class WordMaze(Maze):
 
         return selected_junctions
 
-    def apply_word(self):
-        exit_count = len(self.word)
-        junctions = self.map.get_all_junctions()
-        solution_junctions = set()
-
-        for start_block in junctions:
-            if start_block in self.solution_path.blocks:
-                solution_junctions.add(start_block)
-        
-        if len(solution_junctions) < exit_count - 1:
-            raise IndexError("Not enough exit points to write word!")
-        
-        selected_junctions = self.select_solution_path_junctions(solution_junctions)
-
-        # Close off and unexplore all other junctions
-        for block in solution_junctions:
-            if block in self.solution_path.blocks and block not in selected_junctions:
+    def close_all_solution_path_junctions(self, junctions: Set[Block], exluded_junctions: Set[Block] = None) -> None:
+        for block in junctions:
+            # Make sure we aren't closing an excluded junction
+            if block not in exluded_junctions:
                 block_exits = list(block.exit_directions)
+                # Get close all exit directions not leading to solution path blocks
                 for direction in block_exits:
                     next_block = self.map.get_block_in_direction(block, direction, False)
+                    # Avoid closing up our solution path
                     if next_block not in self.solution_path.blocks:
                         self.close_and_unexplore_connected_blocks(next_block)
-
-        # Reopen paths for unexplored areas on valid routes
+    
+    def fill_out_unexplored_areas(self) -> None:
         past_end_count = -1
         all_explored_blocks = self.map.get_all_explored_blocks()
         all_explored_end_path_blocks = [block for block in all_explored_blocks if len(block.exit_directions) == 0]
@@ -569,18 +580,46 @@ class WordMaze(Maze):
             new_end_count = len(all_explored_end_path_blocks)
 
         self.map.clean_all_blocks()
-        
-        # Apply random invalid letters to all other junctions
+
+    def apply_letters_to_junctions(self) -> None:
         for block in self.map.get_all_junctions(ignore_cache=True):
-            if block not in selected_junctions:
-                self.place_letter_in_exit_blocks(block)
+            self.place_letter_in_exit_blocks(block)
                 
         exit_num = 0
         for block in self.solution_path.blocks:
-            if block in selected_junctions:
+            if len(block.exit_directions) > 1:
                 self.place_letter_in_exit_blocks(block, exit_num)
                 exit_num += 1
-            
+
+    def get_solution_path_junctions(self) -> Set[Block]:
+        junctions = self.map.get_all_junctions()
+        solution_junctions = set()
+
+        for start_block in junctions:
+            if start_block in self.solution_path.blocks:
+                solution_junctions.add(start_block)
+
+        return solution_junctions
+
+    def apply_word(self):
+        exit_count = len(self.word)
+        solution_junctions = self.get_solution_path_junctions()
+        
+        if len(solution_junctions) < exit_count - 1:
+            raise IndexError("Not enough exit points to write word!")
+        
+        # Randomly select the junctions to be used for our word path
+        selected_junctions = self.select_solution_path_junctions(solution_junctions)
+
+        # Close off and unexplore all other junctions
+        self.close_all_solution_path_junctions(solution_junctions, selected_junctions)
+
+        # Reopen paths for unexplored areas on valid routes
+        self.fill_out_unexplored_areas()
+        
+        # Apply letters to junctions
+        self.apply_letters_to_junctions()
+                
 
 
 
