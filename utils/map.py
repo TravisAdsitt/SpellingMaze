@@ -330,7 +330,7 @@ class Path:
             exit_block_list = self.set_random_exits(current_block)
             self.blocks.append(current_block)
             # Debug to show how paths were created
-            if self.map.args.show_path_generation:
+            if hasattr(self.map.args, "show_path_generation") and self.map.args.show_path_generation:
                 if not hasattr(self.map,"_path_image_index"):
                     self.map._path_image_index = 0
                 self.map.save_debug_image(f"{self.map.path_prefix}_{str(self.map._path_image_index)}")
