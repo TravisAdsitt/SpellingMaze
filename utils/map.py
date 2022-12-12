@@ -330,7 +330,7 @@ class Path:
             exit_block_list = self.set_random_exits(current_block)
             self.blocks.append(current_block)
             # Debug to show how paths were created
-            if hasattr(self.map.args, "show_path_generation") and self.map.args.show_path_generation:
+            if self.map.args and hasattr(self.map.args, "show_path_generation") and self.map.args.show_path_generation:
                 if not hasattr(self.map,"_path_image_index"):
                     self.map._path_image_index = 0
                 self.map.save_debug_image(f"{self.map.path_prefix}_{str(self.map._path_image_index)}")
@@ -347,7 +347,7 @@ class Maze:
         self.generate_maze()
         self.solve_maze()
 
-        if self.args.show_path_generation:
+        if self.args and hasattr(self.args, "show_path_generation") and self.args.show_path_generation:
             files = natsorted(glob.glob(f"{self.map.path_prefix}_*.png"))
             if files:
                 frames = [imageio.imread(image) for image in files]
@@ -464,7 +464,7 @@ class WordMaze(Maze):
         self.apply_word()
         self.map.draw()
 
-        if self.args.show_path_generation:
+        if self.args and hasattr(self.args, "show_path_generation") and self.args.show_path_generation:
             parent_files = [natsorted(glob.glob(f"{parent_prefix}_*.png"))[-1] * 10]
             files = parent_files.append(natsorted(glob.glob(f"{self.map.path_prefix}_*.png")))
 
