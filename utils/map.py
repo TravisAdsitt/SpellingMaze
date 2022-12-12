@@ -472,7 +472,7 @@ class WordMaze(Maze):
                 frames = [imageio.imread(image) for image in files]
                 imageio.mimsave("path_building_word_maze.gif", frames, fps=2)
 
-        if self.args.show_letter_placement:
+        if self.args and hasattr(self.args, "show_letter_placement") and self.args.show_letter_placement:
             files = natsorted(glob.glob(f"LetterPlacementImage_*.png"))
 
             if files:
@@ -510,7 +510,7 @@ class WordMaze(Maze):
 
     def place_letter_in_exit_blocks(self, block_with_exits: Block, word_index: int = None) -> None:
         invalid_letters = [l for l in string.ascii_letters if l not in self.word]
-        if self.map.args.show_letter_placement:
+        if self.map.args and hasattr(self.map.args, "show_letter_placement") and self.map.args.show_letter_placement:
             if not hasattr(self.map, "_letter_placement_index"):
                 self.map._letter_placement_index = 0
 
@@ -530,7 +530,7 @@ class WordMaze(Maze):
                 else:
                     letter_block.letter = random.choice(invalid_letters).lower()
             
-            if self.map.args.show_letter_placement:
+            if self.map.args and hasattr(self.map.args, "show_letter_placement") and self.map.args.show_letter_placement:
                 self.map.save_debug_image(f"LetterPlacementImage_{self.map._letter_placement_index}")
                 self.map._letter_placement_index += 1
 
