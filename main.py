@@ -17,10 +17,10 @@ def parseargs() -> argparse.Namespace:
     arg_parser.add_argument("--filename", help="What to name the output maze.", type=str, default="Output_Maze.png")
     arg_parser.add_argument("--word", help="What word to guide the solver.", type=str, default="Hello")
 
-    return arg_parser.parse_args()
+    return arg_parser.parse_known_args()
 
 if __name__ == "__main__":
-    args = parseargs()
+    args, _ = parseargs()
 
     for i in range(args.num_to_generate):
         maze = WordMaze(args.word, args.grid_width, args.grid_height, args.pixel_width, args.pixel_height, args=args)
