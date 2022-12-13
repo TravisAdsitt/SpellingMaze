@@ -28,7 +28,7 @@
                         <p class="card-text" style="text-indent: 50px;">
                             Below is a form you can use to generate spelling word mazes, simply type a word into the input box and click generate! 
                             After a minute or two of waiting you should get download links to the generated mazes.
-                            You can also use the 'Add Word' button to add to your list and generate more than one at a time.
+                            Please keep requested words to a 15 character maximum, failure may occur for really long words.
                         </p>
                         <p class="card-text" style="text-indent: 50px;">
                             If you are interested in further reading on how the maze is generated you can take a look at <a href="https://wfale.net/2022/12/04/spelling-made-exciting-in-a-labyrinthine-maze/">this</a> post which tells the story.
@@ -48,7 +48,21 @@
                         </tr>
                     </thead>
                     <tbody id="word_list" class="table-group-divider">
-                        <tr id="template_row">
+                        <tr>
+                            <td>
+                                <input placeholder="Enter word">
+                            </td>
+                            <td>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <input placeholder="Enter word">
+                            </td>
+                            <td>
+                            </td>
+                        </tr>
+                        <tr>
                             <td>
                                 <input placeholder="Enter word">
                             </td>
@@ -57,32 +71,32 @@
                         </tr>
                     </tbody>
                 </table>
-                <button onclick="cloneRow()" class="btn btn-primary">Add Word</button>
+                <!-- <button onclick="cloneRow()" class="btn btn-primary">Add Word</button> -->
                 <button onclick="generateImages()" class="btn btn-success">Generate</button>
             </div>
         </div>
     </div>
 
     <script>
-        function cloneRow() {
-            var row = document.getElementById("template_row");
-            var table = document.getElementById("word_list");
+        // function cloneRow() {
+        //     var row = document.getElementById("template_row");
+        //     var table = document.getElementById("word_list");
 
-            var clone = row.cloneNode(true);
+        //     var clone = row.cloneNode(true);
 
-            clone.id = "";
-            clone.hidden = "";
+        //     clone.id = "";
+        //     clone.hidden = "";
 
-            clone.cells[0].innerHTML = '';
-            clone.cells[1].innerHTML = '';
+        //     clone.cells[0].innerHTML = '';
+        //     clone.cells[1].innerHTML = '';
 
-            word_input = document.createElement('input');
-            word_input.placeholder = "Enter Word";
+        //     word_input = document.createElement('input');
+        //     word_input.placeholder = "Enter Word";
 
-            clone.cells[0].appendChild(word_input);
+        //     clone.cells[0].appendChild(word_input);
 
-            table.appendChild(clone);
-        }
+        //     table.appendChild(clone);
+        // }
 
         function image_loaded(evt) {
             parent_obj = evt.currentTarget.loading_img.parentNode;
