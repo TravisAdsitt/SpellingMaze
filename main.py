@@ -1,4 +1,5 @@
 from utils.map import WordMaze
+import time
 import argparse
 
 def parseargs() -> argparse.Namespace:
@@ -19,27 +20,30 @@ def parseargs() -> argparse.Namespace:
 
     return arg_parser.parse_known_args()
 
+def test_maze_inputs():
+    words = ["Hello", "Random", "Testing", "Maze", "Generation"]
+    grid_widths = [(20, 20), (40, 40), (80, 80), (160, 160)]
+
+    for word in words:
+        for width in grid_widths:
+            ns = argparse.Namespace(word=word, grid_width=width[0], grid_height=width[1], pixel_width=20, pixel_height=20)
+            yield ns
+
 if __name__ == "__main__":
     args, _ = parseargs()
 
-    for i in range(args.num_to_generate):
-        maze = WordMaze(args.word, args.grid_width, args.grid_height, args.pixel_width, args.pixel_height, args=args)
-        maze.save_image(args.filename.split(".")[0] + "_" + str(i) + ".png")
+    for test_input in test_maze_inputs():
+        print(f"testing {test_input}")
+        start_time = time.perf_counter()
+        WordMaze(test_input.word, test_input.grid_width, test_input.grid_height, test_input.pixel_width, test_input.pixel_height)
+        stop_time = time.perf_counter()
+        print(stop_time - start_time)
 
-        if args.direction_display:
-            maze.map.draw_block_directions()
-            maze.map.draw()
-            maze.save_image(args.filename.split(".")[0] + "_" + str(i) + "_path_directions.png")
 
-        if args.num_exit_display:
-            maze.map.draw_block_exit_count()
-            maze.map.draw()
-            maze.save_image(args.filename.split(".")[0] + "_" + str(i) + "_num_exit_display.png")
 
-        if args.solution:
-            maze.solve_maze(True)
-            maze.map.draw()
-            maze.save_image(args.filename.split(".")[0] + "_" + str(i) + "_solution.png")
+    # maze_generation_time = timeit.timeit(WordMaze(args.word, args.grid_width, args.grid_height, args.pixel_width, args.pixel_height, args=args), number=20)
+    # maze = WordMaze(args.word, args.grid_width, args.grid_height, args.pixel_width, args.pixel_height, args=args)
+    # maze.save_image(args.filename.split(".")[0] + "_" + str(i) + ".png")
 
 
     
