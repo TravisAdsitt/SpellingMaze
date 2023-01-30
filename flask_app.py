@@ -2,6 +2,7 @@
 # An object of Flask class is our WSGI application.
 from flask import Flask, render_template, request, send_file
 from main import parseargs
+import SpellingMaze
 
 from utils.map import WordMaze
 
@@ -13,12 +14,9 @@ def generate_maze(word: str) -> str:
     block_width = block_height = 20
     word = word.lower()
     # Generate the maze
-    maze = WordMaze(word, grid_width, grid_height, block_width, block_height, args=parseargs())
-    # Save the maze to a file
-    filename = f"static/{word}.png"
-    maze.save_image(filename)
+    maze = SpellingMaze.generate_maze(word, grid_width, grid_height, "static/", block_width, block_height)
     # Return where to find the maze
-    return '/' + filename
+    return '/' + word + ".png"
 
 @app.route('/')
 def index():
