@@ -1,0 +1,9 @@
+[Unit]
+Description=Gunicorn instance to serve spellingmaze
+After=network.target
+
+[Service]
+User=spellingmaze
+Group=www-data
+WorkingDirectory=/SpellingMaze
+ExecStart=$(which gunicorn) --workers 3 --bind unix:myproject.sock -m 007 wsgi:app
