@@ -16,7 +16,7 @@ def generate_maze(word: str) -> str:
     # Generate the maze
     maze = SpellingMaze.generate_maze(word, grid_width, grid_height, "static/", block_width, block_height)
     # Return where to find the maze
-    return '/' + word + ".png"
+    return '/static/' + word + ".png"
 
 @app.route('/')
 def index():
